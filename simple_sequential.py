@@ -58,6 +58,8 @@ class SimpleSequential:
         # First doing output layer (assuming there is a hidden layer)
         output_diff = output_layer.output - y
         print(f"output_diff: {output_diff}")
+
+        # This is the problem line, I'm not sure if X should be higher dimensional or if maybe layer.output is the problem
         output_layer.weights += -self.learning_rate * output_diff @ self.layers[-2].output
         prev_output = output_diff
 
@@ -66,6 +68,7 @@ class SimpleSequential:
             current_layer = self.layers[i]
             next_layer = self.layers[i + 1]
             hidden_diff = next_layer.weights @ output_diff * sigmoid_derivative(current_layer.output)
+            print(f"hidden_diff: {hidden_diff}")
             prev_output = self.input
             if i != 0:
                 prev_output = self.layers[i - 1].output
