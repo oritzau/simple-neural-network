@@ -2,78 +2,103 @@ import math
 import numpy as np
 
 def main():
-    model = SimpleSequential(layers=[SimpleLayer(2, activation=sigmoid), SimpleLayer(1, activation=sigmoid)])
-    model.compile([.35, .7])
-    model.layers[0].weights = np.array([[.2, .3], [.2, .3]])
-    model.layers[1].weights = np.array([[.3], [.9]])
+    sigmoid_activation = DifferentiableFunction(sigmoid, sigmoid_deriv)
+    model = SimpleSequential(layers=[
+        SimpleLayer(size=2, activation=sigmoid_activation),
+        SimpleLayer(size=1, activation=sigmoid_activation),
+    ], learning_rate=1)
+    X = np.array([[.35], [.7]])
+    model.compile(X, loss=DifferentiableFunction(mse, mse_deriv))
+    model.layers[0].weights = np.array([[.2, .2], [.3, .3]])
+    model.layers[1].weights = np.array([.3, .9])
     model.feed_forward()
-    model.back_propagation(y=[1.0])
+    model.back_propagation(y=np.array([[1.0]]))
+    print(model.layers[1].weights)
 
-def sigmoid(x):
-    return 1 / (1 + math.exp(-x))
+class DifferentiableFunction:
+    def __init__(self, inner, deriv):
+        self.inner = inner
+        self.deriv = deriv
 
-def sigmoid_derivative(x):
-    return x * (1 - x)
+    def __call__(self, *args):
+        return self.inner(*args)
+    
+    def deriv(self, *args):
+        return self.deriv(*args)
+
 
 class SimpleLayer:
     def __init__(self, size, activation=None):
         self.size = size
         self.activation = activation
-        self.bias = self.output = np.zeros(size)
+        self.bias = self.output = np.zeros((size, 1))
 
 class SimpleSequential:
-    def __init__(self, layers=[], learning_rate=1):
-        self.layers = []
-        for layer in layers:
-            self.layers.append(layer)
+    def __init__(self, layers=[], learning_rate=0.1):
+        self.layers = layers
         self.learning_rate = learning_rate
 
-    def compile(self, x):
-        self.input = x
+    def compile(self, X, loss):
+        self.input = X
+        self.loss = loss
         for i in range(len(self.layers)):
             layer = self.layers[i]
             if i == 0:
-                layer.weights = np.random.rand(len(x), layer.size)
+                layer.weights = np.random.rand(len(self.input), layer.size)
             else:
                 layer.weights = np.random.rand(self.layers[i - 1].size, layer.size)
             layer.output = np.zeros(layer.size)
 
     def feed_forward(self):
-        x = self.input
+        X = self.input
         for i in range(len(self.layers)):
             layer = self.layers[i]
-            print(f"x: {x}")
+            print(f"X: {X}")
             print(f"weights: {layer.weights}")
-            x = layer.output = np.array(list(map(layer.activation, np.dot(x, layer.weights) + layer.bias)))
-            print(f"x after:{x}")
+            z = np.dot(np.transpose(X), layer.weights) + layer.bias
+            layer.z = z
+            print(f"z: {z}")
+            X = layer.output = layer.activation(z)
+            print(f"X after:{X}")
             if i == len(self.layers) - 1:
-                self.output = x
+                self.output = X
         print(f"output: {self.output}")
 
     def back_propagation(self, y):
+        loss = self.loss(self.output, y)
+        print(f"loss: {loss}")
 
-        output_layer = self.layers[-1]
-        correct = int(np.argmax(output_layer) == np.argmax(y))
+        # Walk down to all but first layer
+        for i in range(len(self.layers) - 1, -1, -1):
+            layer = self.layers[i]
+            print(f"layer.weights: {layer.weights}")
+            print(f"layer.activation.deriv(layer.z): {layer.activation.deriv(layer.z)}")
+            weight_times_activ_deriv = np.matmul(layer.weights, np.transpose(layer.activation.deriv(layer.z)))
+            print(f"weight_times_activ_deriv: {weight_times_activ_deriv }")
+            print(f"self.loss.deriv(layer.output, y): {self.loss.deriv(layer.output, y)}")
+            gradient = np.matmul(weight_times_activ_deriv , self.loss.deriv(layer.output, y))
+            print(f"gradient: {gradient}")
+            layer.weights -= gradient * self.learning_rate
 
-        # First doing output layer (assuming there is a hidden layer)
-        output_diff = output_layer.output - y
-        print(f"output_diff: {output_diff}")
+# All activation and cost functions defined here
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-        # This is the problem line, I'm not sure if X should be higher dimensional or if maybe layer.output is the problem
-        output_layer.weights += -self.learning_rate * output_diff @ self.layers[-2].output
-        prev_output = output_diff
+def sigmoid_deriv(x):
+    return sigmoid(x) * (1 - sigmoid(x))
 
-        # Walk down the layers
-        for i in range(len(self.layers) - 2, -1, -1):
-            current_layer = self.layers[i]
-            next_layer = self.layers[i + 1]
-            hidden_diff = next_layer.weights @ output_diff * sigmoid_derivative(current_layer.output)
-            print(f"hidden_diff: {hidden_diff}")
-            prev_output = self.input
-            if i != 0:
-                prev_output = self.layers[i - 1].output
-            current_layer.weights += self.learning_rate * hidden_diff @ prev_output
-            output_diff = hidden_diff
+def relu(x):
+    c = np.zeros(shape=x.shape)
+    return np.maximum(c, x)
+
+def relu_deriv(x):
+    return x > 0
+
+def mse(x, y):
+    return .5 * 1 / len(x) * ((x - y) ** 2)
+
+def mse_deriv(x, y):
+    return (x - y)
 
 if __name__ == "__main__":
     main()
