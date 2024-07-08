@@ -10,10 +10,12 @@ def main():
     X = np.array([[.35], [.7]])
     model.compile(X, loss=DifferentiableFunction(mse, mse_deriv))
     model.layers[0].weights = np.array([[.2, .2], [.3, .3]])
-    model.layers[1].weights = np.array([.3, .9])
+    model.layers[1].weights = np.array([[.3, .9]])
     model.feed_forward()
     model.back_propagation(y=np.array([[1.0]]))
-    print(model.layers[1].weights)
+    print("One forward and backward pass complete")
+    print(f"Layer 0 weights: {model.layers[0].weights}")
+    print(f"Layer 1 weights: {model.layers[1].weights}")
 
 class DifferentiableFunction:
     def __init__(self, inner, deriv):
@@ -55,7 +57,7 @@ class SimpleSequential:
             layer = self.layers[i]
             print(f"X: {X}")
             print(f"weights: {layer.weights}")
-            z = np.dot(np.transpose(X), layer.weights) + layer.bias
+            z = np.dot(layer.weights, X) + layer.bias
             layer.z = z
             print(f"z: {z}")
             X = layer.output = layer.activation(z)
@@ -73,12 +75,12 @@ class SimpleSequential:
             layer = self.layers[i]
             print(f"layer.weights: {layer.weights}")
             print(f"layer.activation.deriv(layer.z): {layer.activation.deriv(layer.z)}")
-            weight_times_activ_deriv = np.matmul(layer.weights, np.transpose(layer.activation.deriv(layer.z)))
+            weight_times_activ_deriv = np.matmul(np.transpose(layer.weights), layer.activation.deriv(layer.z))
             print(f"weight_times_activ_deriv: {weight_times_activ_deriv }")
             print(f"self.loss.deriv(layer.output, y): {self.loss.deriv(layer.output, y)}")
-            gradient = np.matmul(weight_times_activ_deriv , self.loss.deriv(layer.output, y))
+            gradient = np.matmul(weight_times_activ_deriv , np.transpose(self.loss.deriv(layer.output, y)))
             print(f"gradient: {gradient}")
-            layer.weights -= gradient * self.learning_rate
+            layer.weights -= np.transpose(gradient) * self.learning_rate
 
 # All activation and cost functions defined here
 def sigmoid(x):
